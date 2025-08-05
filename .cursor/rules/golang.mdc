@@ -1,0 +1,627 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Правила разработки на Go (Оптимизированная версия)
+
+## 1. Архитектура и структура
+
+### Принципы архитектуры
+- **Чистая гексагональная архитектура**: слои четко разделены
+- **Направление зависимостей**: от внешнего слоя к внутреннему  
+- **Изоляция бизнес-логики**: от внешних зависимостей
+- **Слабая связанность**: через интерфейсы
+- **Максимальный размер файла**: 400 строк (включая комментарии)
+
+### Структура проекта
+```
+project/
+├── cmd/
+│   ├── api/api.go          # API сервер
+│   ├── cli/cli.go          # CLI инструменты
+│   └── ...
+├── docs/                   # Документация
+├── swag/                   # Swagger документация (если есть)
+├── deployments/
+│   └── <название движка базы>/migrations/
+│       └── 00001_init.sql  # Миграции базы данных (goose)
+├── internal/
+│   ├── app/
+│   │   ├── const.go        # Константы проекта (общие для ≥2 пакетов)
+│   │   ├── funcs.go        # Общие функции и generic утилиты
+│   │   └── errors.go       # Тексты ошибок (если используются в >1 пакете)
+│   ├── adapters/
+│   │   ├── storage/
+│   │   │   ├── external.go
+│   │   │   ├── service.go  # Основная структура, типы данных и конструктор
+│   │   │   └── ...         # Файлы реализации
+│   │   └── external-service/
+│   │       ├── external.go
+│   │       ├── service.go
+│   │       └── ...
+│   ├── config/
+│   │   └── config.go       # Переменные окружения и .env
+│   ├── domain/
+│   │   └── ...             # ТОЛЬКО общие структуры (используемые в ≥2 пакетах)
+│   ├── service/
+│   │   ├── crypto/
+│   │   ├── processing/
+│   │   └── exchange/
+│   │       ├── external.go   
+│   │       ├── service.go  # Основная структура и конструктор
+│   │       └── ...         # Файлы реализации
+│   └── web/
+│       ├── api/            # REST API endpoints (JSON ответы), если есть
+│       │   ├── templates/
+│       │   │   └── *.tpl   # Шаблоны для API ответов
+│       │   ├── routing.go  # Роутинг (Fiber)
+│       │   ├── external.go 
+│       │   ├── service.go  # Основная структура и конструктор
+│       │   └── handlers.go # API хендлеры (≤400 строк на группу)
+│       ├── pages/          # Web страницы с HTML, если есть
+│       │   ├── templates/
+│       │   │   └── *.tpl   # HTML шаблоны для страниц
+│       │   ├── static/
+│       │   │   ├── assets/ # Изображения
+│       │   │   ├── js/     # JavaScript
+│       │   │   └── css/    # Стили
+│       │   ├── routing.go  # Роутинг (Fiber)
+│       │   ├── external.go 
+│       │   ├── service.go  # Основная структура и конструктор
+│       │   └── handlers.go # Web хендлеры (≤400 строк на группу)
+│       └── server.go       # Инициализация сервера (без роутинга)
+├── go.mod
+├── go.sum
+├── Makefile               # Команды тестов и линтера обязательно
+└── .gitignore             # Стандартный + .cursor
+```
+
+### Структура файлов в пакетах
+- **`external.go`** - внешние интерфейсы для пакета, не создается если нету внешних интерфейсов, создаются только интерфейсы, которые будут **использоваться** данным пакетом. Те, которые им реализуются, создавать запрещено.
+- **`service.go`** - **СТРОГО ТОЛЬКО**:
+  - Основная структура сервиса с полями зависимостей
+  - Конструктор `NewService()` 
+  - Типы данных специфичные ТОЛЬКО для данного пакета (если нужны)
+  - **ЗАПРЕЩЕНО**: любые методы бизнес-логики, утилитарные функции, обработчики команд, вспомогательные методы, классификаторы, форматтеры
+- **Файлы реализации** - **ВСЯ логика и методы** (НЕ в service.go):
+  - Все методы сервиса (публичные и приватные)
+  - Утилитарные и вспомогательные функции
+  - Логика обработки и бизнес-логика
+  - Вспомогательные типы и локальные константы
+  - Парсеры, валидаторы, форматтеры
+- При превышении 400 строк - разбивать на логические части
+
+**Принцип:** `service.go` это только "конструктор пакета" - создает структуру и больше ничего не делает.
+
+## 2. Зависимости и интерфейсы
+
+### Правила зависимостей
+**ЗАПРЕЩЕНО:**
+- Импорт пакетов из `service` и `adapters` в другие пакеты `service`/`adapters`
+- **Импорт между пакетами service/adapters** (ни структур, ни интерфейсов)
+- Использование ORM: gorm, bun, dbr и других
+- Автогенерация структур из схемы БД: sqlc, sqlboiler, xo, ent/schema
+- **DI контейнеры**: wire, fx и любые другие (жестко запрещены)
+- **Интерфейсы в domain пакете** (строго запрещены)
+
+**ОБЯЗАТЕЛЬНО:**
+- Структуры для ≥2 пакетов → в `domain` (НО НЕ интерфейсы!)
+- **Интерфейсы определяются ТОЛЬКО там, где используются** (дублирование интерфейсов разрешено)
+- Слабая связанность через интерфейсы
+- **Прямая инициализация зависимостей** (без DI контейнеров)
+
+### Правила для domain пакета
+**В `domain` РАЗРЕШЕНО ТОЛЬКО:**
+- Структуры данных (используемые в ≥2 пакетах)
+- Константы типов (enums, статусы)
+- Простые типы-алиасы (`type UserID string`)
+
+**В `domain` СТРОГО ЗАПРЕЩЕНО:**
+- **Любые методы** (`func (s Struct) Method()`)
+- **Любые функции** (`func Function()`)
+- Интерфейсы любого вида
+- Любая логика и вычисления
+
+**Принцип:** `domain` = только данные. Никакого поведения!
+
+**Примеры:**
+```go
+// ✅ РАЗРЕШЕНО
+type User struct {
+    ID   int
+    Name string
+}
+
+// ❌ ЗАПРЕЩЕНО
+func (u User) GetDisplayName() string { return u.Name }
+func ParseUser(s string) User { return User{} }
+```
+
+**Автообнаружение нарушений:** При виде в domain файле `func` - немедленно предлагать перенос в service.
+
+### Константы
+- **Локальные константы** (используются в 1 пакете) → в самом пакете
+- **Общие константы** (используются в ≥2 пакетах) → в `internal/app/const.go`
+
+### Работа с интерфейсами
+
+**Принцип:** Все зависимости между пакетами строятся через интерфейсы, которые определяются в потребляющем пакете (в `external.go`). Прямой импорт реализаций запрещён — только абстракции.
+
+**Основные правила:**
+1. **Слабая связность**: пакеты взаимодействуют через абстракции
+2. **Интерфейсы для зависимостей**: если пакету `A` нужна функциональность из пакета `B`, пакет `A` определяет интерфейс
+3. **Размещение**: все интерфейсы пакета размещаются в файле `external.go`
+4. **Сборка зависимостей**: в `main.go` передаём конкретные реализации как интерфейсы
+
+**Краткий пример:**
+```go
+// /internal/service/users/external.go
+type Notifier interface {
+    SendNotification(userID string, message string) error
+}
+
+// /internal/adapters/notifications/service.go  
+func (s *Service) SendNotification(userID string, message string) error {
+    // реализация
+}
+
+// /cmd/api/main.go
+userService := users.NewUserService(notificationService) // передаём как интерфейс
+```
+
+## 3. Технологический стек
+
+### Обязательные библиотеки
+```go
+// HTTP
+"github.com/gofiber/fiber/v2"
+
+// База данных
+"github.com/Masterminds/squirrel"  // query builder
+
+// Миграции
+"github.com/pressly/goose/v3"      // миграции БД
+
+// Тестирование  
+"go.uber.org/mock"                 // ТОЛЬКО этот gomock!
+"github.com/stretchr/testify"
+"github.com/h2non/gock"            // HTTP мокирование
+"github.com/DATA-DOG/go-sqlmock"   // БД мокирование
+
+// Логирование
+"go.uber.org/zap"
+
+// Конфигурация
+"github.com/joho/godotenv"
+
+// CLI
+"github.com/spf13/cobra"
+```
+
+### База данных
+**РАЗРЕШЕНО:**
+- Прямая работа с `database/sql` (предпочтительно)
+- Squirrel для построения запросов
+- Другие query builders (НЕ ORM!)
+
+**ПРИНЦИПЫ:**
+- Ручное написание SQL или query builders
+- Контроль над генерируемым SQL  
+- Явное управление транзакциями
+
+### Миграции базы данных
+**ИНСТРУМЕНТ:** `github.com/pressly/goose/v3` обязательно
+
+**ПОДХОД:** Goose как библиотека в CLI командах проекта (НЕ внешний CLI)
+
+**ИМЕНОВАНИЕ:**
+- Формат: `00001_migration_name.sql` или `00001_migration_name.go`
+- 5 цифр в начале: `00001`, `00002`, `00003`...
+- Подчеркивание после цифр
+- Описательное название миграции
+
+**ИНТЕГРАЦИЯ В CLI:**
+```go
+//go:embed ../../deployments/sqlite/migrations/*.sql
+var embedMigrations embed.FS
+
+var migrateUpCmd = &cobra.Command{
+    Use: "up",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        db, err := getDB()
+        if err != nil {
+            return err
+        }
+        defer db.Close()
+        
+        goose.SetBaseFS(embedMigrations)
+        goose.SetDialect("sqlite3")
+        
+        return goose.Up(db, "deployments/sqlite/migrations")
+    },
+}
+```
+
+**ПРЕИМУЩЕСТВА:**
+- Использование переменных окружения проекта
+- Встроенные миграции в бинарь (через embed)
+- Единый конфиг для приложения и миграций
+- Нет зависимости от внешнего goose CLI
+
+## 4. API документация
+
+### Swagger документация (обязательно для API)
+**ИНСТРУМЕНТ:** Godoc формат в комментариях над ручками
+
+**ПРАВИЛА:**
+- **Swagger ТОЛЬКО для API**: документация пишется только для ручек в `web/api`
+- **Формат**: godoc комментарии над каждой API ручкой
+- **Обязательно**: описание, параметры, ответы, ошибки
+
+**ПРИМЕР:**
+```go
+// CreateUser создает нового пользователя
+// @Summary Создание пользователя
+// @Description Создает нового пользователя в системе
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body CreateUserRequest true "Данные пользователя"
+// @Success 201 {object} UserResponse "Пользователь создан"
+// @Failure 400 {object} ErrorResponse "Ошибка валидации"
+// @Failure 500 {object} ErrorResponse "Внутренняя ошибка сервера"
+// @Router /api/users [post]
+func (h *Handler) CreateUser(c *fiber.Ctx) error {
+    // реализация
+}
+```
+
+### Разграничение API и Pages
+**API ручки (`web/api`):**
+- **Назначение**: REST API endpoints для внешних клиентов
+- **Ответы**: JSON формат
+- **Документация**: обязательна Swagger документация
+- **Расположение**: `internal/web/api/`
+
+**Pages ручки (`web/pages`):**
+- **Назначение**: веб-страницы с HTML, внутренние AJAX вызовы
+- **Ответы**: HTML, редиректы, или JSON для внутренних нужд
+- **Документация**: Swagger НЕ нужен
+- **Расположение**: `internal/web/pages/`
+
+**ВАЖНО:** Если ручка выглядит как API, но пользователь не просил ее явно для API, и нужна она только для pages (внутренние AJAX вызовы, получение данных для страниц) - это НЕ API. Такие ручки:
+- Размещаются в `web/pages`
+- Swagger документация НЕ пишется
+- Считаются внутренними вызовами веб-интерфейса
+
+## 5. Тестирование
+
+Один тестовый файл на один файл реализации
+
+### Правила
+- `filename.go` → `filename_test.go`
+- Тесты в файле покрывают только один файл реализации
+- Общие утилиты: `testutils_test.go` или `helpers_test.go`
+
+### Пример структуры
+```
+internal/service/example/
+├── users.go         # Логика пользователей  
+├── tasks.go         # Логика задач
+├── users_test.go    # Тесты для users.go
+└── tasks_test.go    # Тесты для tasks.go
+```
+
+### Исключения
+- Общие тестовые утилиты: `testutils_test.go`, `helpers_test.go` 
+
+### Инструменты и стиль
+- **Стиль**: табличные тесты (table-driven) обязательно
+- **Моки интерфейсов**: `go.uber.org/mock`
+- **HTTP мокирование**: `github.com/h2non/gock` 
+- **БД мокирование**: `github.com/DATA-DOG/go-sqlmock`
+- **Assertions**: `github.com/stretchr/testify`
+
+### Принципы
+- Один тест на функцию/метод
+- Покрытие всех веток выполнения
+- **Изоляция**: моки для всех зависимостей (БД, сеть, внешние сервисы)
+- Понятные имена тест-кейсов
+- **Группировка**: использовать `t.Run()` для изоляции подтестов
+- **Детерминированность**: предсказуемые и повторяемые тесты
+
+### Генерация моков
+**ОБЯЗАТЕЛЬНО:**
+- Моки генерируются автоматически через `go generate`
+- **ЗАПРЕЩЕНО** ручное редактирование сгенерированных моков
+- Файлы интерфейсов должны содержать директиву генерации
+
+**Формат директивы:**
+```go
+//go:generate mockgen -source=external.go -destination=./mock/external.go -package mock
+```
+
+**Регенерация моков:**
+Команда `go generate ./...` выполняется ТОЛЬКО если:
+- Добавлена новая директива `//go:generate`
+- Изменилась сигнатура метода в существующем интерфейсе
+
+### Обработка ошибок в тестах
+- **`t.Errorf()`** - если ошибка позволяет продолжить выполнение теста
+- **`t.Fatal()`** - если ошибка блокирует дальнейшее выполнение теста
+- **`t.Helper()`** - обязательно в тестовых утилитах
+
+### Отладка тестов
+**При падении теста:**
+1. **Анализировать причину**: изучить входные данные, ожидаемый и фактический результат
+2. **Проверить гипотезу**: убедиться что тест проверяет корректную бизнес-логику
+3. **Понять код**: сначала разобраться в тестируемой логике
+4. **НЕ "слепые" изменения**: не корректировать ожидаемый результат без понимания
+
+**Протокол эскалации:**
+Если после **3 попыток** исправления проблема не решена:
+1. **ОСТАНОВИТЬСЯ**
+2. **Сообщить пользователю**: детали проблемы, предположения, предпринятые шаги
+3. **Запросить помощь**: "Попытка исправить [ТЕСТ/КОД] ошибку [ОПИСАНИЕ] в течение 3 раз не увенчалась успехом. Предположения: [КРАТКИЕ_ПРЕДПОЛОЖЕНИЯ]. Требуется руководство?"
+
+**ЗАПРЕЩЕНО:**
+- Изменять тест только чтобы он прошел, игнорируя бизнес-логику
+- Ручное редактирование сгенерированных моков
+
+### Пример табличного теста
+```go
+func TestUserService_CreateUser(t *testing.T) {
+    tests := []struct {
+        name    string
+        input   CreateUserInput
+        want    *User
+        wantErr bool
+        setup   func(*MockRepository)
+    }{
+        {
+            name: "successful creation",
+            input: CreateUserInput{
+                Email: "test@example.com",
+                Name:  "Test User",
+            },
+            want: &User{
+                ID:    1,
+                Email: "test@example.com", 
+                Name:  "Test User",
+            },
+            wantErr: false,
+            setup: func(repo *MockRepository) {
+                repo.EXPECT().CreateUser(gomock.Any(), gomock.Any()).
+                    Return(&User{ID: 1, Email: "test@example.com", Name: "Test User"}, nil)
+            },
+        },
+        {
+            name: "validation error",
+            input: CreateUserInput{
+                Email: "invalid-email",
+                Name:  "",
+            },
+            want:    nil,
+            wantErr: true,
+            setup:   func(repo *MockRepository) {}, // no expectations
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            ctrl := gomock.NewController(t)
+            defer ctrl.Finish()
+
+            repo := NewMockRepository(ctrl)
+            tt.setup(repo)
+
+            service := NewUserService(repo)
+            got, err := service.CreateUser(context.Background(), tt.input)
+
+            if tt.wantErr {
+                assert.Error(t, err)
+                assert.Nil(t, got)
+            } else {
+                assert.NoError(t, err)
+                assert.Equal(t, tt.want, got)
+            }
+        })
+    }
+}
+```
+
+### HTTP мокирование с gock
+
+**Принципы использования:**
+
+1.  **Инициализация и Очистка:**
+    *   Перехватывай HTTP-клиент с помощью `gock.InterceptClient(http.DefaultClient)`.
+    *   Обязательно отключай `gock` после каждого теста или подтеста с помощью `defer gock.Off()`.
+    *   Для очистки клиента используй `gock.RestoreClient(http.DefaultClient)` (часто в `defer` после `InterceptClient` или в функциях `setup/teardown`).
+
+2.  **Определение Моков:**
+    *   Используй `gock.New("BASE_URL").Get/Post/etc("PATH")` для определения ожидаемого запроса.
+    *   Используй `.Reply(HTTP_STATUS)` для установки статуса ответа.
+    *   Для тела ответа используй `.File("path/to/fixture.json")`, `.BodyString("raw string body")`, или `.JSON(jsonObject)`.
+
+    ```go
+    // Пример мока для успешного ответа с фикстурой
+    gock.New("https://api.example.com").
+    	Get("/v1/data").
+    	Reply(http.StatusOK).
+    	File(path.Join(fixturePath, "success_data.json"))
+    
+    // Пример мока для ошибки сервера
+    gock.New("https://api.example.com").
+    	Get("/v1/data").
+    	Reply(http.StatusInternalServerError).
+    	BodyString("Internal Server Error")
+    ```
+
+3.  **Фикстуры:**
+    *   Храни файлы фикстур (обычно JSON) в поддиректории `fixtures` относительно файла теста.
+    *   Для получения пути к директории с фикстурами используй `runtime.Caller(0)` и `path.Join(filepath.Dir(filename), "fixtures")`.
+    *   **Создание фикстур:**
+        *   **Самостоятельно создавай** файл фикстуры **только** если формат ответа API **абсолютно понятен и очевиден**.
+        *   **В противном случае**, **ЗАПРОСИ** у пользователя пример или структуру JSON-ответа.
+
+4.  **Тестирование Сценариев:**
+    *   Создавай отдельные подтесты (`t.Run`) для проверки различных сценариев: успех, ошибки API, невалидный формат ответа.
+
+**Важно:**
+*   Убедись, что базовый URL и путь в моке точно соответствуют запросу в коде.
+*   Помни про `defer gock.Off()` для изоляции тестов.
+
+## 6. Логирование и конфигурация
+
+### Zap конфигурация
+```go
+// config/config.go
+type Config struct {
+    LogLevel  string `env:"LOG_LEVEL" envDefault:"info"`    // debug, info, warn, error
+    LogFormat string `env:"LOG_FORMAT" envDefault:"console"` // console, json
+}
+
+func NewLogger(cfg Config) (*zap.Logger, error) {
+    var zapConfig zap.Config
+    
+    switch cfg.LogFormat {
+    case "json":
+        zapConfig = zap.NewProductionConfig()
+    case "console":
+        zapConfig = zap.NewDevelopmentConfig()
+    default:
+        return nil, fmt.Errorf("unknown log format: %s", cfg.LogFormat)
+    }
+    
+    level, err := zap.ParseAtomicLevel(cfg.LogLevel)
+    if err != nil {
+        return nil, fmt.Errorf("invalid log level: %w", err)
+    }
+    zapConfig.Level = level
+    
+    return zapConfig.Build()
+}
+```
+
+### Переменные окружения (.env)
+```bash
+LOG_LEVEL=info      # debug, info, warn, error
+LOG_FORMAT=console  # console (читаемый), json (для продакшена)
+```
+
+### Использование
+```go
+logger.Info("User created",
+    zap.String("user_id", userID),
+    zap.String("email", email),
+)
+
+logger.Error("Database error",
+    zap.Error(err),
+    zap.String("operation", "create_user"),
+)
+```
+
+## 7. Graceful Shutdown
+
+```go
+func main() {
+    app := setupApp()
+    
+    sigChan := make(chan os.Signal, 1)
+    signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+    
+    go func() {
+        if err := app.Listen(":8080"); err != nil {
+            logger.Error("Server failed to start", zap.Error(err))
+        }
+    }()
+    
+    logger.Info("Server started")
+    
+    sig := <-sigChan
+    logger.Info("Received signal", zap.String("signal", sig.String()))
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    
+    if err := app.ShutdownWithContext(ctx); err != nil {
+        logger.Error("Server shutdown failed", zap.Error(err))
+    }
+    
+    logger.Info("Server stopped gracefully")
+}
+```
+
+## 8. Качество кода
+
+### Принципы
+- **Читаемость**: понятный, самодокументируемый код
+- **Модульность**: одна зона ответственности (SRP)
+- **Осмысленные имена**: переменных и функций
+
+### Комментарии
+- Комментировать только **неочевидные** участки
+- Объяснять **причины** выбора решения, сложные алгоритмы
+- **Избегать** очевидных комментариев
+
+### Удаление неиспользуемого кода
+- **Активный код**: только используемый код в кодовой базе
+- **Закомментированный код**: удалять полностью (история в Git)
+- **Ненужные комментарии**: удалять устаревшие и очевидные
+- **Исключение**: комментарии, объясняющие *почему* выбрано нетривиальное решение
+
+### Организация импортов
+**ПРАВИЛА:**
+- Использовать **один блок `import (...)`** на файл
+- **Группировка** на три группы через пустые строки:
+  1. **Стандартная библиотека Go** (`fmt`, `os`, `net/http`)
+  2. **Внешние пакеты** (`github.com/gin-gonic/gin`, `go.uber.org/zap`)
+  3. **Внутренние пакеты** проекта (`myproject/internal/config`)
+- **Порядок групп**: строго стандартная → внешние → внутренние
+- **Сортировка**: внутри каждой группы по алфавиту
+
+**ПРИМЕР:**
+```go
+package main
+
+import (
+	"context" // Стандартная библиотека
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"sort"
+	"time"
+
+	"github.com/gin-gonic/gin" // Внешние пакеты
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"github.com/lib/pq"
+	"go.uber.org/zap"
+
+	"mycoolproject/internal/auth" // Внутренние пакеты
+	"mycoolproject/internal/config"
+	"mycoolproject/internal/handlers"
+	"mycoolproject/pkg/middleware"
+)
+```
+
+## 9. Обязательные файлы
+
+### Makefile
+```makefile
+.PHONY: test lint
+
+test:
+	go test -v ./...
+
+lint:
+	golangci-lint run
+```
+
+### .gitignore
+Стандартный для Go + `.cursor`
+
