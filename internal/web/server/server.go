@@ -125,7 +125,7 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 func connectDB(cfg *config.Config) (*sql.DB, error) {
 	// Используем PostgreSQL напрямую
 	dsn := cfg.GetPostgresDSN()
-
+	fmt.Printf("dsn: %s\n", dsn)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
