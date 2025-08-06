@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/TeDenis/bukhindor-backend/internal/app"
@@ -232,4 +233,115 @@ func (s *Service) generateTokens(userID string) (*domain.AuthTokens, error) {
 		AccessToken:  accessTokenString,
 		RefreshToken: refreshTokenString,
 	}, nil
+}
+
+// RefreshTokensInput входные данные для обновления токенов
+type RefreshTokensInput struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshTokens обновляет access токен используя refresh токен
+func (s *Service) RefreshTokens(ctx context.Context, input RefreshTokensInput) (*domain.AuthTokens, error) {
+	// Валидируем refresh токен
+	if input.RefreshToken == "" {
+		return nil, app.ErrInvalidInput
+	}
+
+	// Парсим JWT токен для получения user_id
+	token, err := jwt.Parse(input.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.JWTSecret), nil
+	})
+
+	if err != nil {
+		s.logger.Error("Failed to parse refresh token", zap.Error(err))
+		return nil, app.ErrInvalidToken
+	}
+
+	if !token.Valid {
+		s.logger.Warn("Invalid refresh token")
+		return nil, app.ErrInvalidToken
+	}
+
+	// Проверяем тип токена
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		s.logger.Error("Failed to parse token claims")
+		return nil, app.ErrInvalidToken
+	}
+
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "refresh" {
+		s.logger.Warn("Invalid token type", zap.String("type", tokenType))
+		return nil, app.ErrInvalidToken
+	}
+
+	// Получаем user_id из токена
+	userID, ok := claims["user_id"].(string)
+	if !ok || userID == "" {
+		s.logger.Error("Missing user_id in refresh token")
+		return nil, app.ErrInvalidToken
+	}
+
+	// Получаем refresh токен из Redis для проверки
+	storedToken, err := s.redisRepo.GetRefreshToken(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to get refresh token from Redis", zap.Error(err), zap.String("user_id", userID))
+		return nil, app.ErrInvalidToken
+	}
+
+	// Проверяем, что токены совпадают
+	if storedToken != input.RefreshToken {
+		s.logger.Warn("Refresh token mismatch", zap.String("user_id", userID))
+		return nil, app.ErrInvalidToken
+	}
+
+	// Проверяем, что пользователь существует и активен
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to get user for refresh", zap.Error(err), zap.String("user_id", userID))
+		return nil, app.ErrUserNotFound
+	}
+
+	if !user.IsActive {
+		s.logger.Warn("Inactive user tried to refresh token", zap.String("user_id", userID))
+		return nil, app.ErrForbidden
+	}
+
+	// Генерируем новые токены
+	newTokens, err := s.generateTokens(userID)
+	if err != nil {
+		s.logger.Error("Failed to generate new tokens", zap.Error(err), zap.String("user_id", userID))
+		return nil, app.ErrInternalServer
+	}
+
+	// Сохраняем новый refresh токен в Redis
+	err = s.redisRepo.SetRefreshToken(ctx, userID, newTokens.RefreshToken, s.config.RefreshTokenExpiration)
+	if err != nil {
+		s.logger.Error("Failed to save new refresh token", zap.Error(err), zap.String("user_id", userID))
+		return nil, app.ErrInternalServer
+	}
+
+	// Создаем новую сессию в БД
+	session := &domain.UserSession{
+		ID:        app.GenerateUUID(),
+		UserID:    userID,
+		TokenHash: app.HashToken(newTokens.RefreshToken),
+		ExpiresAt: time.Now().Add(s.config.RefreshTokenExpiration),
+		CreatedAt: time.Now(),
+	}
+
+	err = s.sessionRepo.CreateSession(ctx, session)
+	if err != nil {
+		s.logger.Error("Failed to create new session", zap.Error(err), zap.String("user_id", userID))
+		// Удаляем refresh токен из Redis в случае ошибки
+		s.redisRepo.DeleteRefreshToken(ctx, userID)
+		return nil, app.ErrInternalServer
+	}
+
+	s.logger.Info("Tokens refreshed successfully", zap.String("user_id", userID))
+
+	return newTokens, nil
 }

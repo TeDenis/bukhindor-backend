@@ -12,17 +12,11 @@ import (
 
 // CreateUser создает нового пользователя
 func (s *Service) CreateUser(ctx context.Context, user *domain.User) error {
-	query, args, err := squirrel.Insert("users").
-		Columns("id", "email", "name", "password_hash", "is_active", "created_at", "updated_at").
-		Values(user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt).
-		ToSql()
+	query := `INSERT INTO users (id, email, name, password_hash, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	if err != nil {
-		s.logger.Error("Failed to build create user query", zap.Error(err))
-		return err
-	}
+	s.logger.Debug("Generated SQL query", zap.String("query", query), zap.Any("args", []interface{}{user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt}))
 
-	_, err = s.db.ExecContext(ctx, query, args...)
+	_, err := s.db.ExecContext(ctx, query, user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		s.logger.Error("Failed to create user", zap.Error(err), zap.String("email", user.Email))
 		return err
@@ -37,6 +31,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*domain.User, err
 	query, args, err := squirrel.Select("id", "email", "name", "password_hash", "is_active", "created_at", "updated_at").
 		From("users").
 		Where(squirrel.Eq{"id": id}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -69,18 +64,12 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*domain.User, err
 
 // GetUserByEmail получает пользователя по email
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query, args, err := squirrel.Select("id", "email", "name", "password_hash", "is_active", "created_at", "updated_at").
-		From("users").
-		Where(squirrel.Eq{"email": email}).
-		ToSql()
+	query := `SELECT id, email, name, password_hash, is_active, created_at, updated_at FROM users WHERE email = $1`
 
-	if err != nil {
-		s.logger.Error("Failed to build get user by email query", zap.Error(err))
-		return nil, err
-	}
+	s.logger.Debug("Generated SQL query for GetUserByEmail", zap.String("query", query), zap.String("email", email))
 
 	var user domain.User
-	err = s.db.QueryRowContext(ctx, query, args...).Scan(
+	err := s.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
@@ -110,8 +99,9 @@ func (s *Service) UpdateUser(ctx context.Context, user *domain.User) error {
 		Set("email", user.Email).
 		Set("name", user.Name).
 		Set("is_active", user.IsActive).
-		Set("updated_at", user.UpdatedAt).
+		Set("updated_at", user.UpdatedAt.Format("2006-01-02 15:04:05")).
 		Where(squirrel.Eq{"id": user.ID}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -144,6 +134,7 @@ func (s *Service) UpdateUser(ctx context.Context, user *domain.User) error {
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	query, args, err := squirrel.Delete("users").
 		Where(squirrel.Eq{"id": id}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -176,8 +167,9 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 func (s *Service) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	query, args, err := squirrel.Update("users").
 		Set("password_hash", passwordHash).
-		Set("updated_at", time.Now()).
+		Set("updated_at", time.Now().Format("2006-01-02 15:04:05")).
 		Where(squirrel.Eq{"id": userID}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {

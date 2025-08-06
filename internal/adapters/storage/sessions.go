@@ -14,7 +14,8 @@ import (
 func (s *Service) CreateSession(ctx context.Context, session *domain.UserSession) error {
 	query, args, err := squirrel.Insert("user_sessions").
 		Columns("id", "user_id", "token_hash", "expires_at", "created_at").
-		Values(session.ID, session.UserID, session.TokenHash, session.ExpiresAt, session.CreatedAt).
+		Values(session.ID, session.UserID, session.TokenHash, session.ExpiresAt.Format("2006-01-02 15:04:05"), session.CreatedAt.Format("2006-01-02 15:04:05")).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -37,6 +38,7 @@ func (s *Service) GetSessionByID(ctx context.Context, id string) (*domain.UserSe
 	query, args, err := squirrel.Select("id", "user_id", "token_hash", "expires_at", "created_at").
 		From("user_sessions").
 		Where(squirrel.Eq{"id": id}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -71,6 +73,7 @@ func (s *Service) GetSessionsByUserID(ctx context.Context, userID string) ([]*do
 		From("user_sessions").
 		Where(squirrel.Eq{"user_id": userID}).
 		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -114,6 +117,7 @@ func (s *Service) GetSessionsByUserID(ctx context.Context, userID string) ([]*do
 func (s *Service) DeleteSession(ctx context.Context, id string) error {
 	query, args, err := squirrel.Delete("user_sessions").
 		Where(squirrel.Eq{"id": id}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -145,7 +149,8 @@ func (s *Service) DeleteSession(ctx context.Context, id string) error {
 // DeleteExpiredSessions удаляет истекшие сессии
 func (s *Service) DeleteExpiredSessions(ctx context.Context) error {
 	query, args, err := squirrel.Delete("user_sessions").
-		Where(squirrel.Lt{"expires_at": time.Now()}).
+		Where(squirrel.Lt{"expires_at": time.Now().Format("2006-01-02 15:04:05")}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {

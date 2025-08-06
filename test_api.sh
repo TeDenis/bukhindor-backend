@@ -52,8 +52,22 @@ RESET_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/reset-password" $HEADERS
 echo "$RESET_RESPONSE" | jq .
 echo ""
 
-# Тест 7: Попытка входа с неверными данными
-echo "7. Попытка входа с неверными данными..."
+# Тест 7: Обновление токенов
+echo "7. Обновление токенов..."
+# Извлекаем refresh токен из предыдущего входа
+REFRESH_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.user.refresh_token // empty')
+if [ -n "$REFRESH_TOKEN" ]; then
+    REFRESH_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/refresh" $HEADERS -d "{
+      \"refresh_token\": \"$REFRESH_TOKEN\"
+    }")
+    echo "$REFRESH_RESPONSE" | jq .
+else
+    echo "Refresh token not found in login response"
+fi
+echo ""
+
+# Тест 8: Попытка входа с неверными данными
+echo "8. Попытка входа с неверными данными..."
 INVALID_LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" $HEADERS -d '{
   "email": "test2@example.com",
   "password": "wrongpassword"
@@ -61,8 +75,8 @@ INVALID_LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" $HEADERS 
 echo "$INVALID_LOGIN_RESPONSE" | jq .
 echo ""
 
-# Тест 8: Попытка доступа без обязательных заголовков
-echo "8. Попытка доступа без обязательных заголовков..."
+# Тест 9: Попытка доступа без обязательных заголовков
+echo "9. Попытка доступа без обязательных заголовков..."
 NO_HEADERS_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" -H "Content-Type: application/json" -d '{
   "email": "test2@example.com",
   "password": "password123"

@@ -2,7 +2,7 @@
 FROM golang:1.24-alpine AS builder
 
 # Устанавливаем необходимые пакеты
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev
 
 # Устанавливаем рабочую директорию
 WORKDIR /app

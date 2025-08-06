@@ -134,6 +134,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/auth/refresh:
+    post:
+      summary: Обновить токены
+      description: Обновляет access токен используя refresh токен
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Токены успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+          headers:
+            Set-Cookie:
+              description: Новый JWT токен в куки
+              schema:
+                type: string
+                example: "access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax"
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Неверный refresh токен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/auth/me:
     get:
       summary: Получить текущего пользователя
@@ -523,6 +562,10 @@ components:
             access_token:
               type: string
               description: JWT access токен
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            refresh_token:
+              type: string
+              description: JWT refresh токен
               example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
     RegisterResponse:

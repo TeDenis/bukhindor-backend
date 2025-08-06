@@ -14,7 +14,8 @@ import (
 func (s *Service) CreatePasswordReset(ctx context.Context, reset *domain.PasswordReset) error {
 	query, args, err := squirrel.Insert("password_resets").
 		Columns("id", "user_id", "token", "expires_at", "used", "created_at").
-		Values(reset.ID, reset.UserID, reset.Token, reset.ExpiresAt, reset.Used, reset.CreatedAt).
+		Values(reset.ID, reset.UserID, reset.Token, reset.ExpiresAt.Format("2006-01-02 15:04:05"), reset.Used, reset.CreatedAt.Format("2006-01-02 15:04:05")).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -37,6 +38,7 @@ func (s *Service) GetPasswordResetByToken(ctx context.Context, token string) (*d
 	query, args, err := squirrel.Select("id", "user_id", "token", "expires_at", "used", "created_at").
 		From("password_resets").
 		Where(squirrel.Eq{"token": token}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -71,6 +73,7 @@ func (s *Service) MarkPasswordResetAsUsed(ctx context.Context, id string) error 
 	query, args, err := squirrel.Update("password_resets").
 		Set("used", true).
 		Where(squirrel.Eq{"id": id}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -102,7 +105,8 @@ func (s *Service) MarkPasswordResetAsUsed(ctx context.Context, id string) error 
 // DeleteExpiredPasswordResets удаляет истекшие запросы на сброс пароля
 func (s *Service) DeleteExpiredPasswordResets(ctx context.Context) error {
 	query, args, err := squirrel.Delete("password_resets").
-		Where(squirrel.Lt{"expires_at": time.Now()}).
+		Where(squirrel.Lt{"expires_at": time.Now().Format("2006-01-02 15:04:05")}).
+		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {

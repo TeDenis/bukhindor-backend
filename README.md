@@ -95,6 +95,7 @@ bukhindor-backend/
 |-------|----------|----------|-------------|
 | POST | `/api/v1/auth/register` | Регистрация пользователя | ❌ |
 | POST | `/api/v1/auth/login` | Вход в систему | ❌ |
+| POST | `/api/v1/auth/refresh` | Обновление токенов | ❌ |
 | POST | `/api/v1/auth/reset-password` | Сброс пароля | ❌ |
 | GET | `/api/v1/auth/me` | Информация о пользователе | ✅ |
 

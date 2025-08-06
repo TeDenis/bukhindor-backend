@@ -121,10 +121,10 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 	return s.app.ShutdownWithContext(ctx)
 }
 
-// connectDB подключается к базе данных PostgreSQL через PgPool
+// connectDB подключается к базе данных PostgreSQL напрямую
 func connectDB(cfg *config.Config) (*sql.DB, error) {
-	// Используем PgPool для подключения
-	dsn := cfg.GetPgPoolDSN()
+	// Используем PostgreSQL напрямую
+	dsn := cfg.GetPostgresDSN()
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

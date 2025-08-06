@@ -71,8 +71,8 @@ func migrateStatusCmd() *cobra.Command {
 }
 
 func runMigrations(cfg *config.Config, command string) error {
-	// Подключаемся к базе данных PostgreSQL через PgPool
-	dsn := cfg.GetPgPoolDSN()
+	// Подключаемся к базе данных PostgreSQL напрямую
+	dsn := cfg.GetPostgresDSN()
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return err

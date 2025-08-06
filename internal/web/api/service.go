@@ -34,6 +34,7 @@ func (s *Service) SetupRoutes(app *fiber.App) {
 	auth.Post("/login", s.login)
 	auth.Post("/register", s.register)
 	auth.Post("/reset-password", s.resetPassword)
+	auth.Post("/refresh", s.refreshTokens)
 
 	// Защищенные роуты (с авторизацией)
 	protected := api.Group("/auth", middleware.JWTAuth(s.config, s.logger))
@@ -97,7 +98,8 @@ func (s *Service) login(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"message": "Login successful",
 		"user": fiber.Map{
-			"access_token": tokens.AccessToken,
+			"access_token":  tokens.AccessToken,
+			"refresh_token": tokens.RefreshToken,
 		},
 	})
 }
@@ -306,5 +308,59 @@ func (s *Service) deleteUser(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"message": "User deleted successfully",
 		"id":      id,
+	})
+}
+
+// refreshTokens обновляет access токен используя refresh токен
+// @Summary Обновить токены
+// @Description Обновляет access токен используя refresh токен
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param tokens body RefreshTokenRequest true "Refresh токен"
+// @Success 200 {object} RefreshTokenResponse "Токены обновлены"
+// @Failure 400 {object} ErrorResponse "Ошибка валидации"
+// @Failure 401 {object} ErrorResponse "Неверный refresh токен"
+// @Failure 500 {object} ErrorResponse "Внутренняя ошибка сервера"
+// @Router /api/v1/auth/refresh [post]
+func (s *Service) refreshTokens(c *fiber.Ctx) error {
+	var req RefreshTokenRequest
+	if err := c.BodyParser(&req); err != nil {
+		s.logger.Warn("Failed to parse refresh token request", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+			"code":  fiber.StatusBadRequest,
+		})
+	}
+
+	input := auth.RefreshTokensInput{
+		RefreshToken: req.RefreshToken,
+	}
+
+	tokens, err := s.authService.RefreshTokens(c.Context(), input)
+	if err != nil {
+		s.logger.Warn("Token refresh failed", zap.Error(err))
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": err.Error(),
+			"code":  fiber.StatusUnauthorized,
+		})
+	}
+
+	// Устанавливаем куки с новым access токеном
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    tokens.AccessToken,
+		HTTPOnly: true,
+		Secure:   s.config.ServerHost != "localhost", // Secure только для продакшена
+		SameSite: "Lax",
+		MaxAge:   int(s.config.JWTExpiration.Seconds()),
+	})
+
+	return c.JSON(fiber.Map{
+		"message": "Tokens refreshed successfully",
+		"tokens": fiber.Map{
+			"access_token":  tokens.AccessToken,
+			"refresh_token": tokens.RefreshToken,
+		},
 	})
 }

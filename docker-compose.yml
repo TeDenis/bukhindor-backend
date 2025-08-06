@@ -13,7 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./deployments/postgres/init:/docker-entrypoint-initdb.d
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - bukhindor-network
     healthcheck:
@@ -37,7 +37,7 @@ services:
       PGPOOL_ENABLE_QUERY_CACHE: "yes"
       PGPOOL_ENABLE_POOL_PASSWD: "no"
     ports:
-      - "5433:5432"
+      - "5434:5432"
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - bukhindor-network
     healthcheck:
