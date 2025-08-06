@@ -22,33 +22,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # PgPool-II
-  pgpool:
-    image: bitnami/pgpool:latest
-    container_name: bukhindor-pgpool
-    environment:
-      POSTGRESQL_HOSTS: postgres:5432
-      POSTGRESQL_USERNAME: bukhindor
-      POSTGRESQL_PASSWORD: password
-      POSTGRESQL_DATABASE: bukhindor
-      PGPOOL_ENABLE_POOL_HBA: "no"
-      PGPOOL_ENABLE_LOAD_BALANCING: "yes"
-      PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING: "yes"
-      PGPOOL_ENABLE_QUERY_CACHE: "yes"
-      PGPOOL_ENABLE_POOL_PASSWD: "no"
-    ports:
-      - "5434:5432"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - bukhindor-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U bukhindor -d bukhindor"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Redis
   redis:
     image: redis:7-alpine
@@ -121,7 +94,7 @@ services:
       - POSTGRES_USER=bukhindor
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
       - POSTGRES_DB=bukhindor
-      - PGPOOL_HOST=pgpool
+      - PGPOOL_HOST=postgres
       - PGPOOL_PORT=5432
       - PGPOOL_USER=bukhindor
       - PGPOOL_PASSWORD=${POSTGRES_PASSWORD:-password}
