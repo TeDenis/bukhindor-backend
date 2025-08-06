@@ -18,6 +18,7 @@ COPY . .
 
 # Собираем приложение
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
+COPY .env ./cmd/.env
 
 # Final stage
 FROM alpine:latest
