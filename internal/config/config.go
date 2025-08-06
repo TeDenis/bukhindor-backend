@@ -61,7 +61,7 @@ func New() *Config {
 		PostgresHost:           getEnv("POSTGRES_HOST", "localhost"),
 		PostgresPort:           getEnv("POSTGRES_PORT", "5433"),
 		PostgresUser:           getEnv("POSTGRES_USER", "bukhindor"),
-		PostgresPassword:       getEnv("POSTGRES_PASSWORD", "password"),
+		PostgresPassword:       getEnv("POSTGRES_PASSWORD", ""),
 		PostgresDB:             getEnv("POSTGRES_DB", "bukhindor"),
 		PostgresSSLMode:        getEnv("POSTGRES_SSLMODE", "disable"),
 		PgPoolHost:             getEnv("PGPOOL_HOST", "localhost"),
