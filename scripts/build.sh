@@ -76,7 +76,7 @@ JWT_SECRET=$JWT_SECRET
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 REDIS_PASSWORD=$REDIS_PASSWORD
 EOF
-
+c
 # Собираем Docker образ
 log "Собираем Docker образ..."
 docker build \
