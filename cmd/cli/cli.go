@@ -77,10 +77,10 @@ func runMigrations(cfg *config.Config, command string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Настраиваем goose
-	goose.SetDialect("postgres")
+	_ = goose.SetDialect("postgres")
 
 	// Выполняем команду
 	switch command {

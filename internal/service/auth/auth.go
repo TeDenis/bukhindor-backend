@@ -88,7 +88,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*domain.AuthToke
 	if err != nil {
 		s.logger.Error("Failed to create session", zap.Error(err), zap.String("user_id", user.ID))
 		// Удаляем refresh токен из Redis если не удалось создать сессию
-		s.redisRepo.DeleteRefreshToken(ctx, user.ID)
+		_ = s.redisRepo.DeleteRefreshToken(ctx, user.ID)
 		return nil, app.ErrInternalServer
 	}
 
@@ -337,7 +337,7 @@ func (s *Service) RefreshTokens(ctx context.Context, input RefreshTokensInput) (
 	if err != nil {
 		s.logger.Error("Failed to create new session", zap.Error(err), zap.String("user_id", userID))
 		// Удаляем refresh токен из Redis в случае ошибки
-		s.redisRepo.DeleteRefreshToken(ctx, userID)
+		_ = s.redisRepo.DeleteRefreshToken(ctx, userID)
 		return nil, app.ErrInternalServer
 	}
 

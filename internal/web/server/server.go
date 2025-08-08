@@ -115,7 +115,7 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 
 	// Закрываем соединение с Redis
 	if s.redis != nil {
-		s.redis.Close()
+		_ = s.redis.Close()
 	}
 
 	return s.app.ShutdownWithContext(ctx)
