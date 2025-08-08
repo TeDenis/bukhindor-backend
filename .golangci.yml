@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 run:
   timeout: 5m
   modules-download-mode: mod
@@ -9,7 +9,4 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-
-issues:
-  exclude-use-default: false
 
