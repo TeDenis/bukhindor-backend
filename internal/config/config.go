@@ -22,13 +22,6 @@ type Config struct {
 	PostgresDB       string `env:"POSTGRES_DB" envDefault:"bukhindor"`
 	PostgresSSLMode  string `env:"POSTGRES_SSLMODE" envDefault:"disable"`
 
-	// PgPool
-	PgPoolHost     string `env:"PGPOOL_HOST" envDefault:"localhost"`
-	PgPoolPort     string `env:"PGPOOL_PORT" envDefault:"5432"`
-	PgPoolUser     string `env:"PGPOOL_USER" envDefault:"bukhindor"`
-	PgPoolPassword string `env:"PGPOOL_PASSWORD" envDefault:"password"`
-	PgPoolDB       string `env:"PGPOOL_DB" envDefault:"bukhindor"`
-
 	// Redis
 	RedisURL      string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 	RedisPassword string `env:"REDIS_PASSWORD" envDefault:""`
@@ -64,11 +57,6 @@ func New() *Config {
 		PostgresPassword:       getEnv("POSTGRES_PASSWORD", ""),
 		PostgresDB:             getEnv("POSTGRES_DB", "bukhindor"),
 		PostgresSSLMode:        getEnv("POSTGRES_SSLMODE", "disable"),
-		PgPoolHost:             getEnv("PGPOOL_HOST", "localhost"),
-		PgPoolPort:             getEnv("PGPOOL_PORT", "5434"),
-		PgPoolUser:             getEnv("PGPOOL_USER", "bukhindor"),
-		PgPoolPassword:         getEnv("PGPOOL_PASSWORD", "password"),
-		PgPoolDB:               getEnv("PGPOOL_DB", "bukhindor"),
 		RedisURL:               getEnv("REDIS_URL", "redis://localhost:6380"),
 		RedisPassword:          getEnv("REDIS_PASSWORD", ""),
 		RedisDB:                getEnvAsInt("REDIS_DB", 0),
@@ -89,12 +77,6 @@ func New() *Config {
 func (c *Config) GetPostgresDSN() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.PostgresHost, c.PostgresPort, c.PostgresUser, c.PostgresPassword, c.PostgresDB, c.PostgresSSLMode)
-}
-
-// GetPgPoolDSN возвращает строку подключения к PgPool
-func (c *Config) GetPgPoolDSN() string {
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		c.PgPoolHost, c.PgPoolPort, c.PgPoolUser, c.PgPoolPassword, c.PgPoolDB, c.PostgresSSLMode)
 }
 
 // NewLogger создает новый логгер на основе конфигурации

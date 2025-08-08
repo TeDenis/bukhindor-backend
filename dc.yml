@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # PostgreSQL
+  postgres:
+    image: postgres:13.3
+    environment:
+      POSTGRES_DB: "bukhindor"
+      POSTGRES_USER: "bukhindor"
+      POSTGRES_PASSWORD: "bukhindor"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deployments/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bukhindor -d bukhindor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: bukhindor-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - bukhindor-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Bukhindor API
+  bukhindor-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+        - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    container_name: bukhindor-api
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=bukhindor
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bukhindor}
+      - POSTGRES_DB=bukhindor
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - METRICS_PORT=9090
+    ports:
+      - "8081:8080"
+      - "9091:9091"
+    networks:
+      - bukhindor-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  bukhindor-network:
+    driver: bridge

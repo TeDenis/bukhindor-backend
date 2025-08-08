@@ -69,21 +69,9 @@ if ! docker info &> /dev/null; then
     error "Docker daemon не запущен"
 fi
 
-# Создаем .env файл для docker-compose
-log "Создаем .env файл..."
-cat > .env << EOF
-JWT_SECRET=$JWT_SECRET
-POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-REDIS_PASSWORD=$REDIS_PASSWORD
-EOF
-c
 # Собираем Docker образ
 log "Собираем Docker образ..."
-docker build \
-    --build-arg JWT_SECRET="$JWT_SECRET" \
-    --build-arg POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    --build-arg REDIS_PASSWORD="$REDIS_PASSWORD" \
-    -t bukhindor-api:$TAG .
+docker build -t bukhindor-api:$TAG .
 
 if [ $? -eq 0 ]; then
     log "Docker образ успешно собран: bukhindor-api:$TAG"
@@ -95,88 +83,46 @@ fi
 IMAGE_SIZE=$(docker images bukhindor-api:$TAG --format "table {{.Size}}" | tail -n 1)
 log "Размер образа: $IMAGE_SIZE"
 
-# Создаем скрипт для запуска
-log "Создаем скрипт запуска..."
-cat > scripts/run.sh << 'EOF'
+log "Создаю/обновляю скрипт деплоя..."
+cat > scripts/deploy.sh << 'EOF'
 #!/bin/bash
-
-# Скрипт для запуска Bukhindor API с Docker Compose
-
 set -e
 
-# Проверяем наличие .env файла
-if [ ! -f .env ]; then
-    echo "ERROR: Файл .env не найден. Запустите сначала build.sh"
-    exit 1
+IMAGE_TAG="$1"
+if [ -z "$IMAGE_TAG" ]; then
+  echo "Usage: $0 <image-tag>" && exit 1
 fi
 
-# Запускаем инфраструктуру
-echo "Запускаем инфраструктуру..."
-docker-compose up -d postgres pgpool redis prometheus grafana
+APP_NAME="bukhindor-api"
+CONTAINER_NAME="$APP_NAME"
 
-# Ждем готовности сервисов
-echo "Ждем готовности сервисов..."
-sleep 30
+echo "Stopping old container (if exists)..."
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
-# Применяем миграции
-echo "Применяем миграции..."
-docker-compose exec bukhindor-api ./main migrate up
+echo "Starting new container..."
+docker run -d --restart unless-stopped \
+  --name "$CONTAINER_NAME" \
+  -p 8080:8080 -p 9091:9091 \
+  -e SERVER_PORT=8080 \
+  -e SERVER_HOST=0.0.0.0 \
+  -e POSTGRES_HOST=${POSTGRES_HOST:-localhost} \
+  -e POSTGRES_PORT=${POSTGRES_PORT:-5432} \
+  -e POSTGRES_USER=${POSTGRES_USER:-bukhindor} \
+  -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password} \
+  -e POSTGRES_DB=${POSTGRES_DB:-bukhindor} \
+  -e POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-disable} \
+  -e REDIS_URL=${REDIS_URL:-redis://localhost:6379} \
+  -e REDIS_PASSWORD=${REDIS_PASSWORD:-} \
+  -e REDIS_DB=${REDIS_DB:-0} \
+  -e JWT_SECRET=${JWT_SECRET:-your-secret-key} \
+  -e LOG_LEVEL=${LOG_LEVEL:-info} \
+  -e LOG_FORMAT=${LOG_FORMAT:-json} \
+  -e METRICS_PORT=${METRICS_PORT:-9091} \
+  bukhindor-api:"$IMAGE_TAG"
 
-# Запускаем API
-echo "Запускаем API..."
-docker-compose up -d bukhindor-api
-
-echo "Bukhindor API запущен!"
-echo "API: http://localhost:8080"
-echo "Grafana: http://localhost:3000 (admin/admin)"
-echo "Prometheus: http://localhost:9090"
+echo "Deployed bukhindor-api:$IMAGE_TAG"
 EOF
 
-chmod +x scripts/run.sh
+chmod +x scripts/deploy.sh
 
-# Создаем скрипт для остановки
-cat > scripts/stop.sh << 'EOF'
-#!/bin/bash
-
-# Скрипт для остановки Bukhindor API
-
-echo "Останавливаем Bukhindor API..."
-docker-compose down
-
-echo "Bukhindor API остановлен"
-EOF
-
-chmod +x scripts/stop.sh
-
-# Создаем скрипт для просмотра логов
-cat > scripts/logs.sh << 'EOF'
-#!/bin/bash
-
-# Скрипт для просмотра логов Bukhindor API
-
-if [ -z "$1" ]; then
-    echo "Просмотр логов всех сервисов..."
-    docker-compose logs -f
-else
-    echo "Просмотр логов сервиса: $1"
-    docker-compose logs -f "$1"
-fi
-EOF
-
-chmod +x scripts/logs.sh
-
-log "Сборка завершена успешно!"
-log ""
-log "Для запуска используйте:"
-log "  ./scripts/run.sh"
-log ""
-log "Для остановки используйте:"
-log "  ./scripts/stop.sh"
-log ""
-log "Для просмотра логов используйте:"
-log "  ./scripts/logs.sh [service_name]"
-log ""
-log "Доступные сервисы:"
-log "  - API: http://localhost:8080"
-log "  - Grafana: http://localhost:3000 (admin/admin)"
-log "  - Prometheus: http://localhost:9090" 
+log "Сборка завершена. Для деплоя: ./scripts/deploy.sh $TAG"

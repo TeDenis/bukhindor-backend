@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/TeDenis/bukhindor-backend/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +16,7 @@ func (s *Service) CreateUser(ctx context.Context, user *domain.User) error {
 
 	s.logger.Debug("Generated SQL query", zap.String("query", query), zap.Any("args", []interface{}{user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt}))
 
-	_, err := s.db.ExecContext(ctx, query, user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt)
+	_, err := s.db.Exec(ctx, query, user.ID, user.Email, user.Name, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		s.logger.Error("Failed to create user", zap.Error(err), zap.String("email", user.Email))
 		return err
@@ -40,7 +40,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*domain.User, err
 	}
 
 	var user domain.User
-	err = s.db.QueryRowContext(ctx, query, args...).Scan(
+	err = s.db.QueryRow(ctx, query, args...).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
@@ -51,7 +51,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (*domain.User, err
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			s.logger.Debug("User not found", zap.String("user_id", id))
 			return nil, domain.ErrUserNotFound
 		}
@@ -69,7 +69,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (*domain.Use
 	s.logger.Debug("Generated SQL query for GetUserByEmail", zap.String("query", query), zap.String("email", email))
 
 	var user domain.User
-	err := s.db.QueryRowContext(ctx, query, email).Scan(
+	err := s.db.QueryRow(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
@@ -80,7 +80,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (*domain.Use
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			s.logger.Debug("User not found", zap.String("email", email))
 			return nil, domain.ErrUserNotFound
 		}
@@ -109,17 +109,13 @@ func (s *Service) UpdateUser(ctx context.Context, user *domain.User) error {
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to update user", zap.Error(err), zap.String("user_id", user.ID))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected == 0 {
 		s.logger.Debug("User not found for update", zap.String("user_id", user.ID))
@@ -142,17 +138,13 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to delete user", zap.Error(err), zap.String("user_id", id))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected == 0 {
 		s.logger.Debug("User not found for deletion", zap.String("user_id", id))
@@ -177,17 +169,13 @@ func (s *Service) UpdatePassword(ctx context.Context, userID, passwordHash strin
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to update password", zap.Error(err), zap.String("user_id", userID))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected == 0 {
 		s.logger.Debug("User not found for password update", zap.String("user_id", userID))

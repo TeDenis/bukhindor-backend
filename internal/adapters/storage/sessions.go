@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/TeDenis/bukhindor-backend/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +23,7 @@ func (s *Service) CreateSession(ctx context.Context, session *domain.UserSession
 		return err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, args...)
+	_, err = s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to create session", zap.Error(err), zap.String("user_id", session.UserID))
 		return err
@@ -47,7 +47,7 @@ func (s *Service) GetSessionByID(ctx context.Context, id string) (*domain.UserSe
 	}
 
 	var session domain.UserSession
-	err = s.db.QueryRowContext(ctx, query, args...).Scan(
+	err = s.db.QueryRow(ctx, query, args...).Scan(
 		&session.ID,
 		&session.UserID,
 		&session.TokenHash,
@@ -56,7 +56,7 @@ func (s *Service) GetSessionByID(ctx context.Context, id string) (*domain.UserSe
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			s.logger.Debug("Session not found", zap.String("session_id", id))
 			return nil, domain.ErrUserNotFound
 		}
@@ -81,7 +81,7 @@ func (s *Service) GetSessionsByUserID(ctx context.Context, userID string) ([]*do
 		return nil, err
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to get sessions by user ID", zap.Error(err), zap.String("user_id", userID))
 		return nil, err
@@ -125,17 +125,13 @@ func (s *Service) DeleteSession(ctx context.Context, id string) error {
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to delete session", zap.Error(err), zap.String("session_id", id))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected == 0 {
 		s.logger.Debug("Session not found for deletion", zap.String("session_id", id))
@@ -158,17 +154,13 @@ func (s *Service) DeleteExpiredSessions(ctx context.Context) error {
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to delete expired sessions", zap.Error(err))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected > 0 {
 		s.logger.Info("Expired sessions deleted", zap.Int64("count", rowsAffected))

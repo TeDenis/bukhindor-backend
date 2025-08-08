@@ -33,9 +33,4 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
-  # PgPool
-  - job_name: 'pgpool'
-    static_configs:
-      - targets: ['pgpool:5432']
-    metrics_path: '/metrics'
-    scrape_interval: 30s 
+  # PgPool removed

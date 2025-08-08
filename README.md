@@ -17,13 +17,13 @@ git clone https://github.com/TeDenis/bukhindor-backend.git
 cd bukhindor-backend
 ```
 
-2. **Соберите и запустите:**
+2. **Соберите образ и задеплойте:**
 ```bash
-# Сборка с секретами
+# Сборка
 ./scripts/build.sh "your-jwt-secret-key" "postgres-password" "redis-password" v1.0.0
 
-# Запуск инфраструктуры
-./scripts/run.sh
+# Деплой выбранной версии
+./scripts/deploy.sh v1.0.0
 ```
 
 3. **Проверьте работу:**
@@ -38,10 +38,6 @@ open http://localhost:8080/docs
 ### Доступные сервисы
 
 - **API**: http://localhost:8080
-- **Grafana**: http://localhost:3000 (admin/admin)
-- **Prometheus**: http://localhost:9090
-- **PostgreSQL**: localhost:5432
-- **Redis**: localhost:6379
 
 ## 🏗️ Архитектура
 
@@ -49,7 +45,7 @@ open http://localhost:8080/docs
 
 - **Язык**: Go 1.24
 - **HTTP Framework**: Fiber v2
-- **База данных**: PostgreSQL 15 + PgPool-II
+- **База данных**: PostgreSQL 15 (pgxpool)
 - **Кеш**: Redis 7
 - **Аутентификация**: JWT токены
 - **Мониторинг**: Prometheus + Grafana
@@ -132,11 +128,7 @@ POSTGRES_USER=bukhindor
 POSTGRES_PASSWORD=password
 POSTGRES_DB=bukhindor
 
-# PgPool
-PGPOOL_HOST=localhost
-PGPOOL_PORT=5432
-PGPOOL_USER=bukhindor
-PGPOOL_PASSWORD=password
+# pgxpool используется автоматически через POSTGRES_* переменные
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -201,23 +193,14 @@ go test -cover ./...
 
 ## 🚀 Развертывание
 
-### Продакшен
-
-1. **Настройте секреты:**
-```bash
-export JWT_SECRET="your-super-secret-jwt-key"
-export POSTGRES_PASSWORD="strong-postgres-password"
-export REDIS_PASSWORD="strong-redis-password"
-```
-
-2. **Соберите образ:**
+1. Экспортируйте нужные переменные окружения (опционально) и соберите образ:
 ```bash
 ./scripts/build.sh "$JWT_SECRET" "$POSTGRES_PASSWORD" "$REDIS_PASSWORD" v1.0.0
 ```
 
-3. **Запустите:**
+2. Запустите контейнер нужной версии:
 ```bash
-./scripts/run.sh
+./scripts/deploy.sh v1.0.0
 ```
 
 ### Локальная разработка
@@ -226,13 +209,7 @@ export REDIS_PASSWORD="strong-redis-password"
 # Установите зависимости
 go mod download
 
-# Запустите инфраструктуру
-docker-compose up -d postgres pgpool redis
-
-# Примените миграции
-go run cmd/cli/cli.go migrate up
-
-# Запустите API
+# Запустите API (требуются уже запущенные PostgreSQL и Redis)
 go run cmd/api/api.go
 ```
 
@@ -241,20 +218,12 @@ go run cmd/api/api.go
 ### Логи
 
 ```bash
-# Просмотр логов всех сервисов
-./scripts/logs.sh
-
-# Просмотр логов конкретного сервиса
-./scripts/logs.sh bukhindor-api
+docker logs -f bukhindor-api
 ```
 
-### База данных
+### Миграции
 
 ```bash
-# Подключение к PostgreSQL
-docker-compose exec postgres psql -U bukhindor -d bukhindor
-
-# Просмотр миграций
 go run cmd/cli/cli.go migrate status
 ```
 

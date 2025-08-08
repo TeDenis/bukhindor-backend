@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/TeDenis/bukhindor-backend/internal/config"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 )
@@ -71,9 +71,9 @@ func migrateStatusCmd() *cobra.Command {
 }
 
 func runMigrations(cfg *config.Config, command string) error {
-	// Подключаемся к базе данных PostgreSQL напрямую
+	// Подключаемся к базе данных PostgreSQL через stdlib драйвер pgx
 	dsn := cfg.GetPostgresDSN()
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return err
 	}

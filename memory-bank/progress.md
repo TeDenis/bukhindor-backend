@@ -9,7 +9,7 @@
 - ✅ **Логирование**: Zap logger с конфигурируемыми уровнями
 - ✅ **Graceful shutdown**: Корректное завершение работы сервера
 - ✅ **CLI инструменты**: Cobra для управления миграциями
-- ✅ **База данных**: PostgreSQL 15 с PgPool-II
+- ✅ **База данных**: PostgreSQL 15 (pgxpool)
 - ✅ **Redis**: Подключение и работа с refresh токенами
 - ✅ **Docker**: Контейнеризация с multi-stage builds
 - ✅ **Docker Compose**: Полная инфраструктура (PostgreSQL, Redis, Prometheus, Grafana)
@@ -44,7 +44,7 @@
 - ✅ **Таблицы**: users, user_sessions, password_resets
 - ✅ **Индексы**: Оптимизированные запросы
 - ✅ **Связи**: Foreign keys и каскадное удаление
-- ✅ **PgPool-II**: Connection pooling и load balancing
+ 
 
 ### Мониторинг
 - ✅ **Prometheus**: Сбор метрик с API
@@ -103,7 +103,7 @@
 2. ✅ **Redis подключение**: Установлен и настроен Redis
 3. ✅ **SQLite драйвер**: Добавлен импорт драйвера
 4. ✅ **Миграции**: Настроены и работают корректно
-5. ✅ **PostgreSQL**: Переход с SQLite на PostgreSQL с PgPool
+5. ✅ **PostgreSQL**: Переход с SQLite на PostgreSQL (pgxpool)
 6. ✅ **Docker**: Полная контейнеризация приложения
 7. ✅ **Мониторинг**: Интеграция Prometheus и Grafana
 8. ✅ **Refresh токены**: Добавлен endpoint для обновления токенов
@@ -126,7 +126,7 @@
 - **Индексов**: 8 для оптимизации запросов
 
 ### Инфраструктура
-- **Docker сервисов**: 6 (API, PostgreSQL, PgPool, Redis, Prometheus, Grafana)
+- **Docker сервисов**: 5 (API, PostgreSQL, Redis, Prometheus, Grafana)
 - **Метрик Prometheus**: 10+ (HTTP, бизнес, системные)
 - **Grafana дашбордов**: 3 (API, бизнес, системные)
 
@@ -170,7 +170,7 @@
 ### Локальная разработка
 ```bash
 # Запуск только инфраструктуры
-docker-compose up -d postgres pgpool redis
+docker-compose up -d postgres redis
 
 # Применение миграций
 go run cmd/cli/cli.go migrate up
@@ -184,5 +184,5 @@ go run cmd/api/api.go
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **PostgreSQL**: localhost:5432
-- **PgPool**: localhost:5433
+ 
 - **Redis**: localhost:6379 

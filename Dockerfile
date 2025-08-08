@@ -16,8 +16,9 @@ RUN go mod download
 # Копируем исходный код
 COPY . .
 
-# Собираем приложение
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
+# Собираем бинарники API и CLI
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /app/bin/api ./cmd/api
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /app/bin/cli ./cmd/cli
 COPY .env ./cmd/.env
 
 # Final stage
@@ -33,11 +34,12 @@ RUN addgroup -g 1001 -S appgroup && \
 # Устанавливаем рабочую директорию
 WORKDIR /root/
 
-# Копируем бинарный файл из builder stage
-COPY --from=builder /app/main .
+# Копируем бинарные файлы из builder stage
+COPY --from=builder /app/bin/api /usr/local/bin/api
+COPY --from=builder /app/bin/cli /usr/local/bin/cli
 
-# Копируем миграции
-COPY --from=builder /app/deployments/postgres/migrations ./migrations
+# Копируем миграции в ожидаемый путь CLI
+COPY --from=builder /app/deployments/postgres/migrations /root/deployments/postgres/migrations
 
 # Меняем владельца файлов
 RUN chown -R appuser:appgroup /root/
@@ -52,5 +54,5 @@ EXPOSE 8080 9091
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Запускаем приложение
-CMD ["./main"] 
+# Запускаем приложение по умолчанию (API)
+CMD ["api"]

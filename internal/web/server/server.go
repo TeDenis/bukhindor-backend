@@ -2,19 +2,19 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"github.com/TeDenis/bukhindor-backend/internal/adapters/storage"
 	"github.com/TeDenis/bukhindor-backend/internal/config"
 	"github.com/TeDenis/bukhindor-backend/internal/service/auth"
 	"github.com/TeDenis/bukhindor-backend/internal/web/api"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	_ "github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 )
 
 // Server представляет HTTP сервер
@@ -22,13 +22,13 @@ type Server struct {
 	app    *fiber.App
 	config *config.Config
 	logger *zap.Logger
-	db     *sql.DB
+	db     *pgxpool.Pool
 	redis  *redis.Client
 }
 
 // New создает новый сервер
 func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
-	// Подключаемся к базе данных
+	// Подключаемся к базе данных (pgxpool)
 	db, err := connectDB(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -121,22 +121,21 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 	return s.app.ShutdownWithContext(ctx)
 }
 
-// connectDB подключается к базе данных PostgreSQL напрямую
-func connectDB(cfg *config.Config) (*sql.DB, error) {
-	// Используем PostgreSQL напрямую
+// connectDB подключается к базе данных PostgreSQL через pgxpool
+func connectDB(cfg *config.Config) (*pgxpool.Pool, error) {
 	dsn := cfg.GetPostgresDSN()
-	fmt.Printf("dsn: %s\n", dsn)
-	db, err := sql.Open("postgres", dsn)
+	var pool *pgxpool.Pool
+	var err error
+	pool, err = pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		return nil, err
 	}
-
-	// Проверяем соединение
-	if err := db.Ping(); err != nil {
+	err = pool.Ping(context.Background())
+	if err != nil {
+		pool.Close()
 		return nil, err
 	}
-
-	return db, nil
+	return pool, nil
 }
 
 // connectRedis подключается к Redis

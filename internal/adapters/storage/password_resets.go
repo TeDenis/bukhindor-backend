@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/TeDenis/bukhindor-backend/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +23,7 @@ func (s *Service) CreatePasswordReset(ctx context.Context, reset *domain.Passwor
 		return err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, args...)
+	_, err = s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to create password reset", zap.Error(err), zap.String("user_id", reset.UserID))
 		return err
@@ -47,7 +47,7 @@ func (s *Service) GetPasswordResetByToken(ctx context.Context, token string) (*d
 	}
 
 	var reset domain.PasswordReset
-	err = s.db.QueryRowContext(ctx, query, args...).Scan(
+	err = s.db.QueryRow(ctx, query, args...).Scan(
 		&reset.ID,
 		&reset.UserID,
 		&reset.Token,
@@ -57,7 +57,7 @@ func (s *Service) GetPasswordResetByToken(ctx context.Context, token string) (*d
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			s.logger.Debug("Password reset not found", zap.String("token", token))
 			return nil, domain.ErrUserNotFound
 		}
@@ -81,17 +81,13 @@ func (s *Service) MarkPasswordResetAsUsed(ctx context.Context, id string) error 
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to mark password reset as used", zap.Error(err), zap.String("reset_id", id))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected == 0 {
 		s.logger.Debug("Password reset not found for marking as used", zap.String("reset_id", id))
@@ -114,17 +110,13 @@ func (s *Service) DeleteExpiredPasswordResets(ctx context.Context) error {
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	tag, err := s.db.Exec(ctx, query, args...)
 	if err != nil {
 		s.logger.Error("Failed to delete expired password resets", zap.Error(err))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		s.logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := int64(tag.RowsAffected())
 
 	if rowsAffected > 0 {
 		s.logger.Info("Expired password resets deleted", zap.Int64("count", rowsAffected))
