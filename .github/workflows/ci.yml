@@ -52,7 +52,7 @@ jobs:
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
           script: |
             set -e
-            TAG=${GITHUB_SHA::7}
+            TAG=$(echo "${{ github.sha }}" | cut -c1-7)
             DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
             if [ -z "$DEPLOY_PATH" ]; then DEPLOY_PATH="$HOME/bukhindor-backend"; fi
             if [ ! -d "$DEPLOY_PATH/.git" ]; then
@@ -73,7 +73,7 @@ jobs:
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
           script: |
             set -e
-            TAG=${GITHUB_SHA::7}
+            TAG=$(echo "${{ github.sha }}" | cut -c1-7)
             DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
             if [ -z "$DEPLOY_PATH" ]; then DEPLOY_PATH="$HOME/bukhindor-backend"; fi
             cd "$DEPLOY_PATH"
@@ -89,7 +89,7 @@ jobs:
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
           script: |
             set -e
-            TAG=${GITHUB_SHA::7}
+            TAG=$(echo "${{ github.sha }}" | cut -c1-7)
             # Запуск CLI для миграций во временном контейнере с env из секретов
             docker run --rm \
               -e POSTGRES_HOST='${{ secrets.POSTGRES_HOST }}' \
