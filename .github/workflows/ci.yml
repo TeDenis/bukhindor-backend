@@ -139,7 +139,7 @@ jobs:
               -e POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}' \
               -e POSTGRES_DB='${{ secrets.POSTGRES_DB }}' \
               -e POSTGRES_SSLMODE='${{ secrets.POSTGRES_SSLMODE }}' \
-              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
+              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
               -e REDIS_PASSWORD='${{ secrets.REDIS_PASSWORD }}' \
               -e REDIS_DB='${{ secrets.REDIS_DB }}' \
               -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
