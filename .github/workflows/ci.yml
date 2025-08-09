@@ -109,7 +109,7 @@ jobs:
               -e POSTGRES_DB='${{ secrets.POSTGRES_DB }}' \
               -e POSTGRES_SSLMODE='${{ secrets.POSTGRES_SSLMODE }}' \
               bukhindor-api:$TAG \
-              cli migrate up
+              /usr/local/bin/cli migrate up
 
       - name: Run new version on server
         uses: appleboy/ssh-action@v1.0.3

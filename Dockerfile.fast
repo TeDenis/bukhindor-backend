@@ -3,14 +3,18 @@ FROM golang:1.23-alpine
 
 # Минимум действий
 RUN apk add --no-cache ca-certificates
+
+# Отключаем автоподкачку toolchain из go.mod
+ENV GOTOOLCHAIN=local
 WORKDIR /app
 
 # Всё одной командой
 COPY . .
 RUN go mod download && \
-    CGO_ENABLED=0 go build -ldflags="-w -s" -o api ./cmd/api && \
+    CGO_ENABLED=0 go build -ldflags="-w -s" -o /usr/local/bin/api ./cmd/api && \
+    CGO_ENABLED=0 go build -ldflags="-w -s" -o /usr/local/bin/cli ./cmd/cli && \
     rm -rf /go/pkg /root/.cache && \
     touch .env
 
 EXPOSE 8080
-CMD ["./api"]
+CMD ["api"]

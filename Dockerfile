@@ -4,6 +4,9 @@ FROM golang:1.23-alpine AS builder
 # Устанавливаем необходимые пакеты
 RUN apk add --no-cache git ca-certificates tzdata
 
+# Отключаем автоподкачку toolchain из go.mod
+ENV GOTOOLCHAIN=local
+
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
