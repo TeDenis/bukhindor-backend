@@ -37,8 +37,8 @@ func (s *Service) SetupRoutes(app *fiber.App) {
 	auth.Post("/refresh", s.refreshTokens)
 
 	// Защищенные роуты (с авторизацией)
-	protected := api.Group("/auth", middleware.JWTAuth(s.config, s.logger))
-	protected.Get("/me", s.getCurrentUser)
+	// Применяем JWT только к конкретному маршруту, чтобы не требовать токен на public-ручках
+	auth.Get("/me", middleware.JWTAuth(s.config, s.logger), s.getCurrentUser)
 
 	// Пользователи (защищенные)
 	users := api.Group("/users", middleware.JWTAuth(s.config, s.logger))
