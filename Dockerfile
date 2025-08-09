@@ -40,7 +40,9 @@ COPY --from=builder /app/bin/cli /usr/local/bin/cli
 
 # Копируем миграции в ожидаемый путь CLI
 COPY --from=builder /app/deployments/postgres/migrations /root/deployments/postgres/migrations
-
+# Копируем конфиг
+COPY --from=builder /app/.env .
+RUN ls -l
 # Меняем владельца файлов
 RUN chown -R appuser:appgroup /root/
 

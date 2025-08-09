@@ -47,11 +47,17 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Добавляем middleware
 	app.Use(recover.New())
+	// Безопасная настройка CORS: если указаны wildcard-источники, запрещаем креды
+	allowOrigins := cfg.CORSAllowedOrigins
+	allowCredentials := true
+	if allowOrigins == "*" {
+		allowCredentials = false
+	}
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.CORSAllowedOrigins,
+		AllowOrigins:     allowOrigins,
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-App-Version, X-App-Type, X-Device-ID",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
-		AllowCredentials: true,
+		AllowCredentials: allowCredentials,
 	}))
 
 	// Создаем сервер
