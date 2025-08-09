@@ -8,6 +8,11 @@ import (
 // ValidateHeaders middleware проверяет наличие обязательных заголовков
 func ValidateHeaders() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Разрешаем preflight-запросы CORS без проверок
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
+
 		// Проверяем наличие обязательных заголовков
 		appVersion := c.Get(app.HeaderAppVersion)
 		appType := c.Get(app.HeaderAppType)

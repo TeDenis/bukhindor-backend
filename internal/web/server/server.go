@@ -55,9 +55,10 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowOrigins,
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-App-Version, X-App-Type, X-Device-ID",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-App-Version, X-App-Type, X-Device-ID, X-Requested-With",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: allowCredentials,
+		MaxAge:           300,
 	}))
 
 	// Создаем сервер
