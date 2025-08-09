@@ -1,0 +1,35 @@
+# Ультра-быстрый Dockerfile для продакшена
+# Минимум слоев, максимум скорости
+
+FROM golang:1.23-alpine AS builder
+
+# Минимум зависимостей
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+# Сразу копируем всё
+COPY . .
+
+# Одна команда для скачивания и сборки
+RUN go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o api ./cmd/api && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o cli ./cmd/cli
+
+# Минимальный финальный образ
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates && \
+    adduser -D -s /bin/sh appuser
+    
+WORKDIR /app
+
+# Копируем только необходимое
+COPY --from=builder /app/api /app/cli ./
+COPY --from=builder /app/deployments/postgres/migrations ./deployments/postgres/migrations/
+
+# Создаем .env
+RUN touch .env && chown appuser:appuser . -R
+
+USER appuser
+EXPOSE 8080
+CMD ["./api"]

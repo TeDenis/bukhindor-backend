@@ -1,0 +1,16 @@
+# Самый быстрый Dockerfile - single stage
+FROM golang:1.23-alpine
+
+# Минимум действий
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+
+# Всё одной командой
+COPY . .
+RUN go mod download && \
+    CGO_ENABLED=0 go build -ldflags="-w -s" -o api ./cmd/api && \
+    rm -rf /go/pkg /root/.cache && \
+    touch .env
+
+EXPOSE 8080
+CMD ["./api"]
