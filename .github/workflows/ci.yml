@@ -8,6 +8,7 @@ on:
 
 jobs:
   lint-and-test:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,6 +42,7 @@ jobs:
     needs: lint-and-test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Prepare repository on server
         uses: appleboy/ssh-action@v1.0.3
