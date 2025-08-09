@@ -49,9 +49,9 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	app.Use(recover.New())
 	// Безопасная настройка CORS: если указаны wildcard-источники, запрещаем креды
 	allowOrigins := cfg.CORSAllowedOrigins
-	allowCredentials := true
-	if allowOrigins == "*" {
-		allowCredentials = false
+	var allowCredentials bool
+	if allowOrigins != "*" {
+		allowCredentials = true
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowOrigins,
