@@ -1,0 +1,31 @@
+# VCS
+.git
+
+# CI/CD configs
+.github/
+
+# Docs and extra project files not needed in image
+README.md
+LICENSE
+memory-bank/
+docs/
+
+# Local data and dev artifacts
+data/
+cookies.txt
+*.log
+*.tmp
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+
+# Tests utilities
+.testdata/
+
+# Exclude monitoring configs from image
+deployments/monitoring/
+
+# Keep DB migrations (explicitly copied in Dockerfile)
+!deployments/postgres/migrations/
