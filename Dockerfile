@@ -1,8 +1,8 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Устанавливаем необходимые пакеты
-RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev
+RUN apk add --no-cache git ca-certificates tzdata
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -10,16 +10,20 @@ WORKDIR /app
 # Копируем go mod файлы
 COPY go.mod go.sum ./
 
-# Скачиваем зависимости
-RUN go mod download
+# Скачиваем зависимости с таймаутом и кешем
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
+RUN go mod download && go mod verify
 
 # Копируем исходный код
 COPY . .
 
-# Собираем бинарники API и CLI
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /app/bin/api ./cmd/api
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /app/bin/cli ./cmd/cli
-COPY .env ./cmd/.env
+# Собираем бинарники API и CLI без CGO для избежания зависаний
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/bin/cli ./cmd/cli
+
+# Создаем .env если его нет
+RUN touch .env
 
 # Final stage
 FROM alpine:latest

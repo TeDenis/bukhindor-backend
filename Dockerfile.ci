@@ -1,0 +1,67 @@
+# Оптимизированный Dockerfile для CI/CD
+# Использует multi-stage build с максимальными оптимизациями
+
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+# Устанавливаем необходимые пакеты для сборки
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Настраиваем Go окружение для максимальной производительности
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
+ENV GOCACHE=/go-cache
+ENV GOMODCACHE=/go-mod-cache
+
+WORKDIR /app
+
+# Создаем папки для кеша
+RUN mkdir -p /go-cache /go-mod-cache
+
+# Копируем только go.mod и go.sum для лучшего кеширования слоев
+COPY go.mod go.sum ./
+
+# Скачиваем зависимости (этот слой будет закеширован если go.mod не изменился)
+RUN --mount=type=cache,target=/go-mod-cache \
+    go mod download && go mod verify
+
+# Копируем исходный код
+COPY . .
+
+# Компилируем с максимальными оптимизациями
+RUN --mount=type=cache,target=/go-cache \
+    --mount=type=cache,target=/go-mod-cache \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s -X main.version=$(git rev-parse --short HEAD)" \
+    -o /app/bin/api ./cmd/api && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s -X main.version=$(git rev-parse --short HEAD)" \
+    -o /app/bin/cli ./cmd/cli
+
+# Создаем минимальный .env если его нет
+RUN touch .env
+
+# Final stage - минимальный образ
+FROM scratch AS final
+
+# Копируем CA сертификаты из builder
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Копируем timezone data
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+
+# Копируем бинарные файлы
+COPY --from=builder /app/bin/api /usr/local/bin/api
+COPY --from=builder /app/bin/cli /usr/local/bin/cli
+
+# Копируем миграции
+COPY --from=builder /app/deployments/postgres/migrations /root/deployments/postgres/migrations
+
+# Копируем конфиг
+COPY --from=builder /app/.env /root/.env
+
+# Открываем порты
+EXPOSE 8080 9091
+
+# Запускаем приложение
+ENTRYPOINT ["/usr/local/bin/api"]

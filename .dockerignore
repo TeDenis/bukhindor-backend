@@ -29,3 +29,14 @@ deployments/monitoring/
 
 # Keep DB migrations (explicitly copied in Dockerfile)
 !deployments/postgres/migrations/
+
+# Exclude development files
+go.work
+go.work.sum
+*.test
+*.prof
+coverage.out
+
+# Exclude scripts and utilities
+scripts/
+test_api.sh
