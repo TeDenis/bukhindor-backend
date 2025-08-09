@@ -42,7 +42,7 @@ jobs:
     needs: lint-and-test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - name: Prepare repository on server
         uses: appleboy/ssh-action@v1.0.3
@@ -52,16 +52,20 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
+          command_timeout: 15m
           script: |
             set -e
             TAG=$(echo "${{ github.sha }}" | cut -c1-7)
             DEPLOY_PATH=${{ secrets.DEPLOY_PATH }}
             if [ -z "$DEPLOY_PATH" ]; then DEPLOY_PATH="$HOME/bukhindor-backend"; fi
+            REPO_URL="https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}"
             if [ ! -d "$DEPLOY_PATH/.git" ]; then
-              git clone https://github.com/${{ github.repository }} "$DEPLOY_PATH"
+              GIT_TERMINAL_PROMPT=0 git clone --depth=1 "$REPO_URL" "$DEPLOY_PATH"
             fi
             cd "$DEPLOY_PATH"
-            git fetch --all
+            git remote set-url origin "$REPO_URL" || true
+            git config --global --add safe.directory "$DEPLOY_PATH" || true
+            GIT_TERMINAL_PROMPT=0 git fetch --all --prune
             git checkout ${{ github.ref_name }} || git checkout -B ${{ github.ref_name }}
             git reset --hard ${{ github.sha }}
 
@@ -73,6 +77,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
+          command_timeout: 45m
           script: |
             set -e
             TAG=$(echo "${{ github.sha }}" | cut -c1-7)
@@ -89,6 +94,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
+          command_timeout: 15m
           script: |
             set -e
             TAG=$(echo "${{ github.sha }}" | cut -c1-7)
@@ -111,6 +117,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
+          command_timeout: 15m
           script: |
             set -euo pipefail
             IMAGE_NAME=bukhindor-api
