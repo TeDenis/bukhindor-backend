@@ -110,9 +110,12 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_KEY_PASSWORD }}
           script: |
-            set -e
-            TAG=${GITHUB_SHA::7}
-            CONTAINER_NAME=bukhindor-api
+            set -euo pipefail
+            IMAGE_NAME=bukhindor-api
+            TAG=$(echo "${{ github.sha }}" | cut -c1-7)
+            if [ -z "$TAG" ]; then echo "TAG is empty"; exit 1; fi
+            CONTAINER_NAME="$IMAGE_NAME"
+            docker image inspect "$IMAGE_NAME:$TAG" >/dev/null 2>&1 || { echo "Image $IMAGE_NAME:$TAG not found"; exit 1; }
             docker rm -f $CONTAINER_NAME 2>/dev/null || true
             docker run -d --restart unless-stopped \
               --name $CONTAINER_NAME \
@@ -132,5 +135,5 @@ jobs:
               -e LOG_LEVEL='${{ secrets.LOG_LEVEL }}' \
               -e LOG_FORMAT='${{ secrets.LOG_FORMAT }}' \
               -e METRICS_PORT=9091 \
-              bukhindor-api:$TAG
+              "$IMAGE_NAME:$TAG"
 
